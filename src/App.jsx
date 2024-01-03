@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { WAVE_OPTIONS, TARGET_OPTIONS } from './constants';
+import Modulator from './lib/Modulator';
 import useInterval from './hooks/useInterval';
 import useMIDI from './hooks/useMIDI';
 import Form from './components/Form';
@@ -10,6 +12,9 @@ import Fader from './components/Fader';
 import './index.css';
 
 export default function App() {
+  const { output } = useMIDI();
+  const [modulator, setModulator] = useState(new Modulator(0, 0));
+
   const form = useForm({
     defaultValues: {
       target: TARGET_OPTIONS[0].value,
@@ -18,6 +23,27 @@ export default function App() {
       depth: 0,
     },
   });
+
+  useInterval(() => {
+    if (!output) return;
+
+    const { rate, depth, target, wave } = form.getValues();
+
+    if (!rate || !depth) return;
+
+    const value = modulator[wave];
+    const message = [176, target, value];
+
+    output.send(message);
+  }, 100);
+
+  useEffect(() => {
+    const subscription = form.watch(({ rate, depth }) => {
+      setModulator(new Modulator(Number(depth), Number(rate)));
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form.watch]);
 
   return (
     <Form
@@ -37,12 +63,12 @@ export default function App() {
       <Fader
         name="rate"
         label="Rate"
-        max={1024}
+        max={100}
       />
       <Fader
         name="depth"
         label="Depth"
-        max={1024}
+        max={127}
       />
     </Form>
   );
